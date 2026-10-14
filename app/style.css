@@ -1,6 +1,9 @@
 @font-face { font-family: "Dela Gothic One"; src: url("fonts/dela-gothic-one.woff2") format("woff2"); font-display: block; }
 @font-face { font-family: "Zen Maru Gothic"; src: url("fonts/zen-maru-gothic-bold.woff2") format("woff2"); font-weight: 700; font-display: block; }
 @font-face { font-family: "Zen Maru Gothic"; src: url("fonts/zen-maru-gothic-black.woff2") format("woff2"); font-weight: 900; font-display: block; }
+@font-face { font-family: "Noto Sans SC"; src: url("fonts/noto-sans-sc-700.woff2") format("woff2"); font-weight: 700; font-display: block; }
+@font-face { font-family: "Noto Sans SC"; src: url("fonts/noto-sans-sc-900.woff2") format("woff2"); font-weight: 900; font-display: block; }
+@font-face { font-family: "ZCOOL QingKe HuangYou"; src: url("fonts/qingke-huangyou.woff2") format("woff2"); font-display: block; }
 
 :root {
   --ink: #1b1d4d;
@@ -15,8 +18,8 @@
   --red: #ff4f6d;
   --E: 0;
   --kick: 0;
-  --round: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
-  --chunky: "Dela Gothic One", "Zen Maru Gothic", sans-serif;
+  --round: "Zen Maru Gothic", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --chunky: "Dela Gothic One", "ZCOOL QingKe HuangYou", "Noto Sans SC", sans-serif;
   color-scheme: light;
 }
 
@@ -75,20 +78,23 @@ button:focus-visible { outline: 4px solid var(--yellow); outline-offset: 3px; }
 .logo-top { display: flex; gap: .02em; font-size: var(--fs); letter-spacing: -.04em; }
 .logo i { font-style: normal; display: inline-block; position: relative; }
 .logo-top i {
+  font-family: "Noto Sans SC", var(--round); font-weight: 900;
   color: #fff;
   /* white paper edge, ink outline, then an offset second sheet */
   text-shadow:
     0 0 0 #fff,
     3px 0 0 var(--ink), -3px 0 0 var(--ink), 0 3px 0 var(--ink), 0 -3px 0 var(--ink),
     2.5px 2.5px 0 var(--ink), -2.5px 2.5px 0 var(--ink), 2.5px -2.5px 0 var(--ink), -2.5px -2.5px 0 var(--ink),
-    6px 7px 0 var(--pink), 8px 9px 0 var(--ink), 4px 10px 0 var(--ink);
+    5px 6px 0 var(--pink), 7px 8px 0 var(--ink), 4px 9px 0 var(--ink);
   transform: rotate(var(--r, -6deg)) translateY(var(--dy, 0));
   animation: logo-hop 1.6s cubic-bezier(.3, 1.6, .5, 1) infinite;
 }
 .logo-top i:nth-child(1) { --r: -9deg; color: #fff; }
 .logo-top i:nth-child(2) { --r: 7deg; --dy: -6px; animation-delay: -.8s; }
+.logo-top i:nth-child(3) { --r: -4deg; --dy: 2px; animation-delay: -.4s; }
 .logo-top i::after { content: attr(data-c); position: absolute; inset: 0; color: var(--blue); clip-path: polygon(0 62%, 100% 50%, 100% 100%, 0 100%); text-shadow: none; }
 .logo-top i:nth-child(2)::after { color: var(--pink); }
+.logo-top i:nth-child(3)::after { color: var(--mint); }
 .logo-ribbon { position: relative; display: flex; justify-content: center; gap: .1em; margin-top: calc(var(--fs) * 0.04); padding: .12em .9em .2em; font-size: calc(var(--fs) * 0.52); color: #fff; transform: rotate(-3deg); }
 .ribbon-bg { position: absolute; inset: -6% -14% -10%; width: 128%; height: 116%; z-index: -1; filter: drop-shadow(0 5px 0 var(--ink)); }
 .logo-ribbon i { text-shadow: 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 2px 0 var(--ink), 0 -2px 0 var(--ink), 0 4px 0 var(--ink); animation: logo-wave 1.6s ease-in-out infinite; }

@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "dopa-drill-zh",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./app"
+  },
+  // *.workers.dev is blocked in mainland China; the custom domain is the link to share there.
+  "workers_dev": true,
+  "routes": [{ "pattern": "molly.openroutera.com", "custom_domain": true }]
+}

@@ -1,35 +1,47 @@
-// Dopakichi: a rubber-hose mascot drawn as layered SVG in screen space.
-// Shapes follow docs/dopakichi.svg, converted to unit space (feet at y=0).
+// 小茉莉: a big-headed rubber-hose girl drawn as layered SVG in screen space.
+// The rig (springs, poses, actions) comes from Dopa Drill's mascot; the art is new.
+// Unit space: feet at y=0, head centre at y=-100.
 // Body parts are springs; actions are cancellable async routines.
 import { Spring, tween, wait, lerp, clamp, rand, pick, quadPoint, easeOutQuad, easeInQuad, easeOutBack, easeInOutCubic, easeOutCubic, onFrame } from './core.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 export const INK = '#000';
-const CREAM = '#fff3e4';
+const SKIN = '#ffe6d3';
+const HAIR = '#2b1c18';
+const HAIR_HI = '#5e463d';
+const IRIS = '#3b2419';
+const CHEEK = '#ffa9b1';
+const SHADES = '#ff3d3d';
+// Outfit colours (id041, id044): body = denim vest, inner = tie, leg = shoes.
+// 'pink' stays the default key (it is hardcoded elsewhere); it is the look from the photos.
 export const PALETTES = {
-  pink: { body: '#ff97bf', inner: '#ffe6f0', leg: '#2f79f7', cheek: '#ffe6f0' },
-  blue: { body: '#6fa0ff', inner: '#dde8ff', leg: '#ff97bf', cheek: '#ffd6e6' },
-  yellow: { body: '#ffd452', inner: '#fff3c4', leg: '#2f79f7', cheek: '#ffd9c2' },
-  mint: { body: '#5eddb8', inner: '#d6f8ec', leg: '#7b5cff', cheek: '#ffd6e6' },
-  violet: { body: '#b793ff', inner: '#ede3ff', leg: '#ff97bf', cheek: '#ffd6e6' },
+  pink: { body: '#34466e', inner: '#ff4a3d', leg: '#ff4a3d', cheek: CHEEK },
+  blue: { body: '#6fa0ff', inner: '#ffd452', leg: '#ff97bf', cheek: CHEEK },
+  yellow: { body: '#ffd452', inner: '#ff5a4f', leg: '#2f79f7', cheek: CHEEK },
+  mint: { body: '#5eddb8', inner: '#7b5cff', leg: '#7b5cff', cheek: CHEEK },
+  violet: { body: '#b793ff', inner: '#ffd452', leg: '#ff97bf', cheek: CHEEK },
   // Unlockable colours for the hero (id041, id044).
-  gold: { body: '#ffc53d', inner: '#fff1b8', leg: '#ff7ab6', cheek: '#ffd9c2' },
-  snow: { body: '#f4f6ff', inner: '#dde4ff', leg: '#3b6bff', cheek: '#ffd6e6' },
-  rainbow: { body: 'url(#dk-rainbow)', inner: '#fff4f9', leg: '#2f79f7', cheek: '#ffe6f0', flat: '#ff97bf' },
+  gold: { body: '#ffc53d', inner: '#ff4f6d', leg: '#ff7ab6', cheek: CHEEK },
+  snow: { body: '#f4f6ff', inner: '#3b6bff', leg: '#3b6bff', cheek: CHEEK },
+  rainbow: { body: 'url(#dk-rainbow)', inner: '#ff4a3d', leg: '#2f79f7', cheek: CHEEK },
 };
 
-// Costumes drawn over the original shape (docs/dopakichi.svg is never changed).
-// head: moves with the head; back: behind the body (capes).
+// Costumes. head: moves with the head (drawn for the original head, fitted by
+// HAT_FIT); face: on the face; back: behind the body (capes); hide: base parts
+// (bun, shades, flower) a costume takes the place of.
 export const COSTUMES = {
-  cap: { head: `<path class="dk-l" d="M-44 -133 C-44 -166 44 -166 44 -133 Z" fill="#3b6bff"/><path class="dk-l" d="M-6 -133 C10 -140 52 -142 60 -132 C52 -126 20 -126 -6 -133Z" fill="#2a4fd6"/><circle class="dk-l" cx="0" cy="-160" r="5" fill="#ffd23f"/><path d="M-30 -147 Q0 -158 30 -147" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/>` },
-  hachimaki: { head: `<path class="dk-l" d="M-55 -128 Q0 -142 55 -128 L55 -116 Q0 -130 -55 -116Z" fill="#fff"/><circle cx="0" cy="-129" r="6" fill="#ff4f6d"/><path class="dk-l" d="M50 -124 Q70 -132 82 -122 Q70 -118 56 -120Z M52 -120 Q66 -110 74 -98 Q62 -104 52 -114Z" fill="#fff"/>` },
+  cap: { hide: ['bun', 'shades', 'flower'], head: `<path class="dk-l" d="M-44 -133 C-44 -166 44 -166 44 -133 Z" fill="#3b6bff"/><path class="dk-l" d="M-6 -133 C10 -140 52 -142 60 -132 C52 -126 20 -126 -6 -133Z" fill="#2a4fd6"/><circle class="dk-l" cx="0" cy="-160" r="5" fill="#ffd23f"/><path d="M-30 -147 Q0 -158 30 -147" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/>` },
+  hachimaki: { hide: ['shades'], head: `<path class="dk-l" d="M-55 -128 Q0 -142 55 -128 L55 -116 Q0 -130 -55 -116Z" fill="#fff"/><circle cx="0" cy="-129" r="6" fill="#ff4f6d"/><path class="dk-l" d="M50 -124 Q70 -132 82 -122 Q70 -118 56 -120Z M52 -120 Q66 -110 74 -98 Q62 -104 52 -114Z" fill="#fff"/>` },
   cape: { back: `<path class="dk-l" d="M-30 -58 C-60 -30 -64 -10 -58 4 L58 4 C64 -10 60 -30 30 -58 Z" fill="#ff4f6d"/><path d="M-50 -2 L50 -2" stroke="#ffd23f" stroke-width="5"/>`, head: `<path class="dk-l" d="M-24 -66 Q0 -58 24 -66 L20 -58 Q0 -52 -20 -58Z" fill="#ff4f6d"/><circle class="dk-l" cx="0" cy="-59" r="4.5" fill="#ffd23f"/>` },
-  crown: { head: `<path class="dk-l" d="M-32 -140 L-36 -176 L-18 -156 L0 -184 L18 -156 L36 -176 L32 -140 Z" fill="#ffd23f"/><circle class="dk-l" cx="0" cy="-160" r="5" fill="#ff4f6d"/><circle class="dk-l" cx="-22" cy="-150" r="3.5" fill="#3b6bff"/><circle class="dk-l" cx="22" cy="-150" r="3.5" fill="#3fdcb0"/>` },
-  glasses: { face: `<g class="dk-l" fill="rgba(255,255,255,.25)"><circle cx="-23.4" cy="-93.8" r="15"/><circle cx="23.4" cy="-93.8" r="15"/></g><path class="dk-l" d="M-8.4 -95 Q0 -100 8.4 -95 M-38 -97 L-48 -101 M38 -97 L48 -101" fill="none"/>` },
-  ribbon: { head: `<path class="dk-l" d="M0 -150 C-14 -176 -46 -170 -36 -150 C-30 -140 -12 -142 0 -150Z M0 -150 C14 -176 46 -170 36 -150 C30 -140 12 -142 0 -150Z" fill="#ff5a9c"/><circle class="dk-l" cx="0" cy="-151" r="7" fill="#ff7ab6"/><path d="M-28 -160 Q-20 -156 -14 -152 M28 -160 Q20 -156 14 -152" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" opacity=".8"/>` },
-  headphones: { head: `<path class="dk-l" d="M-60 -110 C-60 -178 60 -178 60 -110" fill="none" stroke-width="7" stroke="#1b1d4d"/><path d="M-60 -110 C-60 -178 60 -178 60 -110" fill="none" stroke="#a77bff" stroke-width="5"/><rect class="dk-l" x="-68" y="-122" width="16" height="30" rx="7" fill="#a77bff"/><rect class="dk-l" x="52" y="-122" width="16" height="30" rx="7" fill="#a77bff"/>` },
-  wizard: { head: `<path class="dk-l" d="M-52 -138 Q0 -152 52 -138 Q0 -128 -52 -138Z" fill="#5b3fd6"/><path class="dk-l" d="M-34 -141 C-20 -170 -4 -208 22 -222 C14 -200 26 -170 34 -141 Z" fill="#6f52ff"/><path class="dk-l" d="M-4 -182 L-1 -175 L6 -175 L0 -170 L3 -163 L-4 -167 L-10 -163 L-8 -170 L-14 -175 L-6 -175Z" fill="#ffd23f"/><circle class="dk-l" cx="22" cy="-222" r="5" fill="#ffd23f"/>` },
+  crown: { hide: ['bun', 'shades', 'flower'], head: `<path class="dk-l" d="M-32 -140 L-36 -176 L-18 -156 L0 -184 L18 -156 L36 -176 L32 -140 Z" fill="#ffd23f"/><circle class="dk-l" cx="0" cy="-160" r="5" fill="#ff4f6d"/><circle class="dk-l" cx="-22" cy="-150" r="3.5" fill="#3b6bff"/><circle class="dk-l" cx="22" cy="-150" r="3.5" fill="#3fdcb0"/>` },
+  glasses: { hide: ['shades'], face: `<g class="dk-l" fill="rgba(255,255,255,.25)"><circle cx="-21" cy="-96" r="15"/><circle cx="21" cy="-96" r="15"/></g><path class="dk-l" d="M-6 -97 Q0 -102 6 -97 M-36 -99 L-50 -103 M36 -99 L50 -103" fill="none"/>` },
+  ribbon: { hide: ['bun', 'shades', 'flower'], head: `<path class="dk-l" d="M0 -150 C-14 -176 -46 -170 -36 -150 C-30 -140 -12 -142 0 -150Z M0 -150 C14 -176 46 -170 36 -150 C30 -140 12 -142 0 -150Z" fill="#ff5a9c"/><circle class="dk-l" cx="0" cy="-151" r="7" fill="#ff7ab6"/><path d="M-28 -160 Q-20 -156 -14 -152 M28 -160 Q20 -156 14 -152" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" opacity=".8"/>` },
+  headphones: { hide: ['shades', 'flower'], head: `<path class="dk-l" d="M-60 -110 C-60 -178 60 -178 60 -110" fill="none" stroke-width="7" stroke="#1b1d4d"/><path d="M-60 -110 C-60 -178 60 -178 60 -110" fill="none" stroke="#a77bff" stroke-width="5"/><rect class="dk-l" x="-68" y="-122" width="16" height="30" rx="7" fill="#a77bff"/><rect class="dk-l" x="52" y="-122" width="16" height="30" rx="7" fill="#a77bff"/>` },
+  wizard: { hide: ['bun', 'shades', 'flower'], head: `<path class="dk-l" d="M-52 -138 Q0 -152 52 -138 Q0 -128 -52 -138Z" fill="#5b3fd6"/><path class="dk-l" d="M-34 -141 C-20 -170 -4 -208 22 -222 C14 -200 26 -170 34 -141 Z" fill="#6f52ff"/><path class="dk-l" d="M-4 -182 L-1 -175 L6 -175 L0 -170 L3 -163 L-4 -167 L-10 -163 L-8 -170 L-14 -175 L-6 -175Z" fill="#ffd23f"/><circle class="dk-l" cx="22" cy="-222" r="5" fill="#ffd23f"/>` },
 };
+// Hats were drawn for a smaller head: scale them up about the head and lift them.
+const HAT_FIT = 'translate(0 -106) scale(1.12) translate(0 100)';
+const hatSVG = (c) => (c.head ? `<g transform="${HAT_FIT}">${c.head}</g>` : '');
 
 const el = (name, attrs = {}, parent) => {
   const e = document.createElementNS(NS, name);
@@ -45,8 +57,8 @@ const F = 'class="dk-f"';
 // Eye rings use a thinner line so the white ring stays visible, as in the drawing.
 const T = 'class="dk-t"';
 const EYE = {
-  open: (p) => `<circle r="11.2" fill="#fff" ${T}/><circle class="dk-t dk-iris" r="8.6" fill="${p.body}"/>`,
-  wide: (p) => `<circle r="12.4" fill="#fff" ${T}/><circle class="dk-t dk-iris" r="5" fill="${p.body}"/>`,
+  open: () => `<ellipse rx="9.6" ry="11" fill="#fff" ${T}/><g class="dk-iris"><ellipse rx="7.4" ry="8.8" fill="${IRIS}"/><circle cx="-2.6" cy="-3.6" r="2.7" fill="#fff"/><circle cx="2.6" cy="3.2" r="1.2" fill="#fff"/></g><path d="M-9.8 -4.5 Q0 -16.6 9.8 -4.5" fill="none" ${L}/>`,
+  wide: () => `<ellipse rx="11" ry="12.4" fill="#fff" ${T}/><g class="dk-iris"><circle r="5.2" fill="${IRIS}"/><circle cx="-1.6" cy="-1.8" r="1.6" fill="#fff"/></g>`,
   happy: () => `<path d="M-9 3 Q0 -10 9 3" fill="none" ${F}/>`,
   closed: () => `<path d="M-9 -1 Q0 7 9 -1" fill="none" ${F}/>`,
   x: () => `<path d="M-7 -7 L7 7 M7 -7 L-7 7" fill="none" ${F}/>`,
@@ -55,11 +67,14 @@ const EYE = {
   heart: () => `<path d="M0 9.6 C-14.4 -1.2 -10.8 -13.2 -4.3 -11.4 C-1.9 -10.8 0 -8.4 0 -6.5 C0 -8.4 1.9 -10.8 4.3 -11.4 C10.8 -13.2 14.4 -1.2 0 9.6Z" fill="#ff2d7a" ${L}/>`,
   tight: () => `<path d="M-8 -5 L6 0 L-8 5" fill="none" ${F}/>`,
 };
+// Two lashes on the outer corner of an open eye (s: -1 left eye, 1 right eye).
+const LASH = (s) => `<path d="M${s * 8.2} -8.4 L${s * 12.2} -11 M${s * 9.6} -5.6 L${s * 13.2} -7" fill="none" ${L}/>`;
 // Brow pose per eye expression: lift (up) and tilt (degrees, inner ends up when > 0).
 const BROW = { happy: [1, 0], star: [1.2, 0], heart: [1, 0], wide: [1.6, 0], x: [0.4, 18], swirl: [0.2, 14], tight: [0, -16], closed: [0, 8] };
 const MOUTH = {
   smile: `<path d="M-8.1 -1.3 C-4.9 3 4.9 3 8.1 -1.3" fill="none" ${L}/>`,
-  cat: `<path d="M-9 -1 Q-4.5 5 0 0 Q4.5 5 9 -1" fill="none" ${L}/>`,
+  // A small pout (嘟嘴), used for the lighter celebrations.
+  cat: `<path d="M0 -1.8 C-1.6 -4.6 -6.2 -4 -5.6 -0.6 C-5.2 2.6 -1.8 3.8 0 2.4 C1.8 3.8 5.2 2.6 5.6 -0.6 C6.2 -4 1.6 -4.6 0 -1.8Z" fill="#ff7088" ${L}/><path d="M-3.2 -1.6 Q-1.8 -2.6 -0.7 -1.2" fill="none" stroke="#fff" stroke-width="1.2" stroke-linecap="round" opacity=".8"/>`,
   grin: `<path d="M-10 -3 Q0 -1 10 -3 Q9 12 0 12 Q-9 12 -10 -3Z" fill="#7a1840" ${L}/><path d="M-5 8 Q0 4 5 8 Q3 11.5 0 11.6 Q-3 11.5 -5 8Z" fill="#ff7aa8"/>`,
   o: `<ellipse rx="4.6" ry="5.8" fill="#7a1840" ${L}/>`,
   big: `<ellipse rx="9" ry="11" fill="#7a1840" ${L}/><ellipse cy="5" rx="5.5" ry="4" fill="#ff7aa8"/>`,
@@ -68,24 +83,26 @@ const MOUTH = {
   puff: `<path d="M-3 0 L3 0" fill="none" ${L}/>`,
 };
 
-// Shape constants (unit space, feet at y=0), from docs/dopakichi.svg scaled by 0.18.
+// Shape constants (unit space, feet at y=0).
 export const G = {
   foot: 'M-19.3 -18.5 C-24.8 -18.5 -28.1 -16 -32.8 -11.3 C-36.7 -7.4 -38.9 -4.9 -35.8 -2.3 C-31.5 1.4 -24.1 1.1 -18.2 -2 C-12.1 -4.9 -8.5 -9.2 -12.1 -14.8 C-13.9 -17.6 -16.2 -18.5 -19.3 -18.5Z',
   footPivot: { x: 18.5, y: -15.8 },
   // Body fill reaches up under the head; the neck has no drawn seam.
   bodyFill: 'M-37.4 -65.7 C-29.7 -61 -25.2 -54.2 -25.2 -46.8 C-25.2 -40.5 -28.8 -35.3 -28.8 -28.4 C-28.8 -18.4 -20.7 -13.5 -10.8 -13.5 L10.8 -13.5 C20.7 -13.5 28.8 -18.4 28.8 -28.4 C28.8 -35.3 25.2 -40.5 25.2 -46.8 C25.2 -54.2 29.7 -61 37.4 -65.7 L37.4 -75.2 L-37.4 -75.2Z',
   bodyLine: 'M-37.4 -65.7 C-29.7 -61 -25.2 -54.2 -25.2 -46.8 C-25.2 -40.5 -28.8 -35.3 -28.8 -28.4 C-28.8 -18.4 -20.7 -13.5 -10.8 -13.5 L10.8 -13.5 C20.7 -13.5 28.8 -18.4 28.8 -28.4 C28.8 -35.3 25.2 -40.5 25.2 -46.8 C25.2 -54.2 29.7 -61 37.4 -65.7',
-  belly: { cy: -32, rx: 17.8, ry: 13.5 },
-  headFill: 'M-37.4 -65.7 C-49.7 -73.1 -56.3 -82.1 -56.3 -98.5 C-56.3 -129.6 -32.9 -149.2 0 -149.2 C32.9 -149.2 56.3 -129.6 56.3 -98.5 C56.3 -82.1 49.7 -73.1 37.4 -65.7 L0 -70.2Z',
-  headLine: 'M-37.4 -65.7 C-49.7 -73.1 -56.3 -82.1 -56.3 -98.5 C-56.3 -129.6 -32.9 -149.2 0 -149.2 C32.9 -149.2 56.3 -129.6 56.3 -98.5 C56.3 -82.1 49.7 -73.1 37.4 -65.7',
-  face: 'M0 -133 C29.7 -133 48.2 -121.7 48.2 -96.5 C48.2 -71.3 25.7 -61.2 0 -61.2 C-25.7 -61.2 -48.2 -71.3 -48.2 -96.5 C-48.2 -121.7 -29.7 -133 0 -133Z',
-  head: { cy: -100, r: 56 },
+  // Hair mass behind the face, the face, and the choppy baby bangs.
+  hairBack: 'M-50 -76 C-60 -92 -61 -118 -50 -136 C-40 -152 -22 -160 0 -160 C22 -160 40 -152 50 -136 C61 -118 60 -92 50 -76 C40 -72 -40 -72 -50 -76Z',
+  face: 'M0 -127 C27 -127 50 -117 51.5 -96 C53 -76 37 -60 0 -60 C-37 -60 -53 -76 -51.5 -96 C-50 -117 -27 -127 0 -127Z',
+  bangs: 'M-52 -110 C-56 -134 -36 -158 0 -158 C36 -158 56 -134 52 -110 C48 -114 44 -117 40 -113 C36 -119 30 -121 25 -115 C20 -122 13 -123 8 -117 C4 -124 -4 -124 -8 -117 C-13 -123 -20 -122 -25 -115 C-30 -121 -36 -119 -40 -113 C-44 -117 -48 -114 -52 -110Z',
+  // Left side lock (mirrored for the right); it swings from the temple like the old ears.
+  lock: 'M-44 -120 C-60 -116 -58 -100 -64 -90 C-71 -78 -62 -70 -67 -58 C-70 -50 -62 -45 -57 -50 C-59 -53 -60 -57 -56 -60 C-50 -68 -58 -78 -51 -88 C-46 -96 -50 -108 -40 -116Z',
+  head: { cy: -100, r: 58 },
   neckY: -65.7,
-  ear: { x: 74.2, cy: -105.3, rx: 31, ry: 31.3, irx: 21.1, iry: 22, pivot: 52.6 },
-  eye: { x: 23.4, y: -93.8 },
-  brow: { x: 13.5, y: -111.2, rx: 3.1, ry: 1.8 },
-  mouthY: -79,
-  cheek: { x: 30.6, y: -78.5, rx: 4.3, ry: 2.7 },
+  ear: { pivot: 44, cy: -114 },
+  eye: { x: 21, y: -96 },
+  brow: { x: 21, y: -109.5, rx: 5.2, ry: 1.7 },
+  mouthY: -74.5,
+  cheek: { x: 32, y: -80, rx: 8.4, ry: 4.8 },
   shoulder: { x: 25.7, y: -48 },
   rest: { x: 37.8, y: -34.7 },
   arm: 4.6,
@@ -96,10 +113,28 @@ export const G = {
 const lineFor = (S) => clamp(1.7 / S, 1.4, 3.2);
 
 // Static parts shared by the live actor and the sprite image.
-const earSVG = (p, s) => `<ellipse ${L} cx="${s * G.ear.x}" cy="${G.ear.cy}" rx="${G.ear.rx}" ry="${G.ear.ry}" fill="${p.body}"/><ellipse ${L} cx="${s * G.ear.x}" cy="${G.ear.cy}" rx="${G.ear.irx}" ry="${G.ear.iry}" fill="${p.inner}"/>`;
+const lockSVG = (s) => `<g${s > 0 ? ' transform="scale(-1 1)"' : ''}><path ${L} d="${G.lock}" fill="${HAIR}"/><path d="M-59 -95 C-64 -84 -59 -76 -63 -66" fill="none" stroke="${HAIR_HI}" stroke-width="2.2" stroke-linecap="round"/></g>`;
 const footSVG = (p, s) => `<path ${L} d="${G.foot}" fill="${p.leg}"${s > 0 ? ' transform="scale(-1 1)"' : ''}/>`;
-const bodySVG = (p) => `<path d="${G.bodyFill}" fill="${p.body}"/><path ${L} d="${G.bodyLine}" fill="none"/><ellipse ${L} cy="${G.belly.cy}" rx="${G.belly.rx}" ry="${G.belly.ry}" fill="${CREAM}"/>`;
-const headSVG = (p) => `<path d="${G.headFill}" fill="${p.body}"/><path ${L} d="${G.headLine}" fill="none"/><path ${L} d="${G.face}" fill="${CREAM}"/>`;
+// Denim vest with a V neck and a red polka-dot tie (the photo-shoot outfit).
+const bodySVG = (p) => `<path d="${G.bodyFill}" fill="${p.body}"/><path ${L} d="${G.bodyLine}" fill="none"/>`
+  + `<path d="M-13 -66 L0 -50 L13 -66Z" fill="${SKIN}"/><path ${L} d="M-13 -66 L0 -50 L13 -66" fill="none"/>`
+  + `<path ${L} d="M-4.6 -58 L4.6 -58 L3.6 -50 L-3.6 -50Z" fill="${p.inner}"/><path ${L} d="M-3.6 -50 L3.6 -50 L7.5 -27 L0 -19 L-7.5 -27Z" fill="${p.inner}"/>`
+  + '<g fill="#fff"><circle cx="-1.8" cy="-44" r="1.3"/><circle cx="2.6" cy="-37.5" r="1.3"/><circle cx="-2.6" cy="-31" r="1.3"/><circle cx="2.2" cy="-25" r="1.2"/></g>';
+const bunSVG = () => `<circle ${L} cx="0" cy="-165" r="16" fill="${HAIR}"/><path d="M-8 -172 Q0 -178 8 -171 M-10 -161 Q-2 -156 8 -160" fill="none" stroke="${HAIR_HI}" stroke-width="2.4" stroke-linecap="round"/>`;
+const EAR = (s) => `<ellipse ${L} cx="${s * 51}" cy="-90" rx="7" ry="9" fill="${SKIN}"/><path d="M${s * 52.5} -94 Q${s * 50} -90 ${s * 52.5} -86" fill="none" stroke="#e3a78f" stroke-width="1.6" stroke-linecap="round"/>`
+  + `<path class="dk-t" d="M0 3.6 C-5.4 -0.5 -4 -5 -1.6 -4.3 C-0.7 -4 0 -3.2 0 -2.4 C0 -3.2 0.7 -4 1.6 -4.3 C4 -5 5.4 -0.5 0 3.6Z" fill="#3b6bff" transform="translate(${s * 53} -78)"/>`;
+const headSVG = () => `<path ${L} d="${G.hairBack}" fill="${HAIR}"/>${EAR(-1)}${EAR(1)}<path ${L} d="${G.face}" fill="${SKIN}"/>`
+  + '<path d="M-1.8 -85.5 Q0 -83.8 1.8 -85.5" fill="none" stroke="#c98b76" stroke-width="1.8" stroke-linecap="round"/>'
+  + `<path ${L} d="${G.bangs}" fill="${HAIR}"/><path d="M-32 -140 Q-14 -149 6 -146 M16 -146 Q24 -145 30 -141" fill="none" stroke="${HAIR_HI}" stroke-width="3.2" stroke-linecap="round"/>`;
+// Red sunglasses pushed up on the head (her signature), and a jasmine flower.
+const shadesSVG = () => `<rect ${L} x="-40" y="-147" width="30" height="18" rx="7" fill="${SHADES}"/><rect ${L} x="10" y="-147" width="30" height="18" rx="7" fill="${SHADES}"/>`
+  + '<rect x="-36.5" y="-143.5" width="23" height="11" rx="4.5" fill="#2e2233"/><rect x="13.5" y="-143.5" width="23" height="11" rx="4.5" fill="#2e2233"/>'
+  + `<path d="M-10.5 -139 Q0 -144 10.5 -139" fill="none" stroke="${INK}" stroke-width="6" stroke-linecap="round"/><path d="M-10.5 -139 Q0 -144 10.5 -139" fill="none" stroke="${SHADES}" stroke-width="3" stroke-linecap="round"/>`
+  + '<path d="M-32 -140.5 L-26 -140.5 M17 -140.5 L23 -140.5" stroke="#fff" stroke-width="2" stroke-linecap="round" opacity=".75"/>';
+const flowerSVG = () => `<g transform="translate(-27 -150) rotate(-12)"><ellipse ${L} cx="-9" cy="3" rx="5" ry="2.8" fill="#5fcf8f" transform="rotate(-25 -9 3)"/>`
+  + [0, 72, 144, 216, 288].map((a) => `<ellipse ${L} cy="-5.2" rx="3.6" ry="5.6" fill="#fff" transform="rotate(${a})"/>`).join('')
+  + `<circle ${L} r="2.6" fill="#ffd23f"/></g>`;
+const PARTS = { bun: bunSVG, shades: shadesSVG, flower: flowerSVG };
 const STYLE = `.dk-l,.dk-f,.dk-t{stroke:${INK};stroke-linecap:round;stroke-linejoin:round}.dk-l{stroke-width:var(--dkw)}.dk-f{stroke-width:calc(var(--dkw) * 1.5)}.dk-t{stroke-width:calc(var(--dkw) * 0.55)}`;
 
 let uid = 0;
@@ -152,11 +187,15 @@ export class Dopakichi {
     this.feet = [-1, 1].map((s) => { const g = el('g', {}, this.bodyG); g.innerHTML = footSVG(p, s); return g; });
     el('g', {}, this.bodyG).innerHTML = bodySVG(p);
     this.headG = el('g', {}, this.bodyG);
-    this.earGs = [-1, 1].map((s) => { const g = el('g', {}, this.headG); g.innerHTML = earSVG(p, s); return { g, s }; });
-    el('g', {}, this.headG).innerHTML = headSVG(p);
+    // Side locks keep the old ear springs (earL / earR), so every ear flap is a hair flip.
+    this.earGs = [-1, 1].map((s) => { const g = el('g', {}, this.headG); g.innerHTML = lockSVG(s); return { g, s }; });
+    this.parts = {};
+    this.parts.bun = el('g', {}, this.headG); this.parts.bun.innerHTML = bunSVG();
+    el('g', {}, this.headG).innerHTML = headSVG();
+    for (const k of ['shades', 'flower']) { this.parts[k] = el('g', {}, this.headG); this.parts[k].innerHTML = PARTS[k](); }
     this.face = el('g', {}, this.headG);
     this.cheeks = [-1, 1].map((s) => el('ellipse', { cx: s * G.cheek.x, cy: G.cheek.y, rx: G.cheek.rx, ry: G.cheek.ry, fill: p.cheek }, this.face));
-    this.brows = [-1, 1].map(() => el('ellipse', { class: 'dk-l', rx: G.brow.rx, ry: G.brow.ry, fill: p.body }, this.face));
+    this.brows = [-1, 1].map(() => el('ellipse', { rx: G.brow.rx, ry: G.brow.ry, fill: HAIR }, this.face));
     this.eyeGs = [-1, 1].map(() => el('g', {}, this.face));
     this.irises = [];
     this.mouthG = el('g', { transform: `translate(0 ${G.mouthY})` }, this.face);
@@ -164,8 +203,8 @@ export class Dopakichi {
     this.faceWear = el('g', {}, this.headG);
     this.headWear = el('g', {}, this.headG);
     this.armsFront = el('g', { class: 'dk-arms' }, front || this.root);
-    // A gradient body colour cannot paint a thin stroke well; arms use a flat colour.
-    const armCol = p.flat || p.body;
+    // Sleeveless vest: bare arms and hands.
+    const armCol = SKIN;
     this.arms = this.hands.map(() => ({
       out: el('path', { fill: 'none', stroke: INK, 'stroke-linecap': 'round' }, this.armsFront),
       inn: el('path', { fill: 'none', stroke: armCol, 'stroke-linecap': 'round' }, this.armsFront),
@@ -196,7 +235,8 @@ export class Dopakichi {
   setCostume(id) {
     this.costume = id && COSTUMES[id] ? id : null;
     const c = this.costume ? COSTUMES[this.costume] : {};
-    this.headWear.innerHTML = c.head || '';
+    for (const [k, g] of Object.entries(this.parts)) g.style.display = (c.hide || []).includes(k) ? 'none' : '';
+    this.headWear.innerHTML = hatSVG(c);
     this.faceWear.innerHTML = c.face || '';
     this.backG.innerHTML = c.back || '';
   }
@@ -207,7 +247,7 @@ export class Dopakichi {
       this.eyeGs.forEach((g, i) => {
         const kind = eyes === 'wink' ? (i ? 'happy' : 'open') : eyes;
         // The right eye mirrors so pointed shapes face each other.
-        g.innerHTML = `<g transform="scale(${i && kind === 'tight' ? -1 : 1} 1)">${EYE[kind](this.pal)}</g>`;
+        g.innerHTML = `<g transform="scale(${i && kind === 'tight' ? -1 : 1} 1)">${EYE[kind](this.pal)}</g>${kind === 'open' ? LASH(i ? 1 : -1) : ''}`;
       });
       this.irises = this.eyeGs.map((g) => g.querySelector('.dk-iris'));
       const [lift, tilt] = BROW[eyes === 'wink' ? 'happy' : eyes] || [0, 0];
@@ -266,7 +306,8 @@ export class Dopakichi {
     this.shadow.setAttribute('transform', `translate(${bx} ${gy + 2}) scale(${S * hk * sx} ${S * hk})`);
     this.headG.setAttribute('transform', `rotate(${this.tilt.value} 0 ${G.neckY})`);
     this.earGs.forEach(({ g, s }) => {
-      const a = (s < 0 ? -this.earL.value : this.earR.value);
+      // Hair swings less than the ears did, so it never flips over the head.
+      const a = 0.55 * (s < 0 ? -this.earL.value : this.earR.value);
       g.setAttribute('transform', `rotate(${a} ${s * G.ear.pivot} ${G.ear.cy})`);
     });
     const lx = this.look.x * 1.6; const ly = this.look.y * 1.4;
@@ -602,37 +643,38 @@ export class Dopakichi {
   destroy() { this.root.remove(); this.armsFront.remove(); }
 }
 
-// Standalone sprite image of Dopakichi for canvas particles (cheering pose).
+// Standalone sprite image of the hero for canvas particles (cheering pose).
 export function dopakichiSprite(palette = 'pink', size = 128) {
-  const p = PALETTES[palette];
-  const { eye, cheek, shoulder, brow } = G;
-  const tip = (s) => ({ x: s * 66, y: -150 });
-  const arm = (s) => `M${s * shoulder.x} ${shoulder.y} Q${s * 62} ${shoulder.y - 20} ${tip(s).x} ${tip(s).y}`;
-  const svg = `<svg xmlns="${NS}" viewBox="-110 -170 220 176" width="${size}" height="${size * 176 / 220}">
+  const p = PALETTES[palette] || PALETTES.pink;
+  const tip = (s) => ({ x: s * 70, y: -150 });
+  const arm = (s) => `M${s * G.shoulder.x} ${G.shoulder.y} Q${s * 64} ${G.shoulder.y - 20} ${tip(s).x} ${tip(s).y}`;
+  const svg = `<svg xmlns="${NS}" viewBox="-110 -186 220 192" width="${size}" height="${size * 192 / 220}">
   <style>svg{--dkw:3.4}${STYLE}</style>
-  ${footSVG(p, -1)}${footSVG(p, 1)}${bodySVG(p)}${earSVG(p, -1)}${earSVG(p, 1)}${headSVG(p)}
-  ${[-1, 1].map((s) => `<ellipse cx="${s * cheek.x}" cy="${cheek.y}" rx="${cheek.rx}" ry="${cheek.ry}" fill="${p.cheek}"/><ellipse class="dk-l" cx="${s * brow.x}" cy="${brow.y - 4}" rx="${brow.rx}" ry="${brow.ry}" fill="${p.body}"/><g transform="translate(${s * eye.x} ${eye.y})">${EYE.happy()}</g>`).join('')}
-  <g transform="translate(0 ${G.mouthY})">${MOUTH.grin}</g>
-  ${[-1, 1].map((s) => `<path d="${arm(s)}" fill="none" stroke="${INK}" stroke-width="${G.arm + 6.8}" stroke-linecap="round"/><path d="${arm(s)}" fill="none" stroke="${p.body}" stroke-width="${G.arm}" stroke-linecap="round"/><circle class="dk-l" cx="${tip(s).x}" cy="${tip(s).y}" r="${G.hand}" fill="${p.body}"/>`).join('')}
+  ${footSVG(p, -1)}${footSVG(p, 1)}${bodySVG(p)}${lockSVG(-1)}${lockSVG(1)}${faceSVG(p, 'happy', 'grin', [])}
+  ${[-1, 1].map((s) => `<path d="${arm(s)}" fill="none" stroke="${INK}" stroke-width="${G.arm + 6.8}" stroke-linecap="round"/><path d="${arm(s)}" fill="none" stroke="${SKIN}" stroke-width="${G.arm}" stroke-linecap="round"/><circle class="dk-l" cx="${tip(s).x}" cy="${tip(s).y}" r="${G.hand}" fill="${SKIN}"/>`).join('')}
   </svg>`;
   const img = new Image();
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
   return img;
 }
 
-// Static SVG markup of Dopakichi with a colour and costume (collection thumbnails).
+// Head with hair, accessories and a fixed expression, as static markup.
+function faceSVG(p, eyes, mouth, hide) {
+  const { eye, cheek, brow } = G;
+  return `${hide.includes('bun') ? '' : bunSVG()}${headSVG()}${['shades', 'flower'].filter((k) => !hide.includes(k)).map((k) => PARTS[k]()).join('')}
+  ${[-1, 1].map((s) => `<ellipse cx="${s * cheek.x}" cy="${cheek.y}" rx="${cheek.rx}" ry="${cheek.ry}" fill="${p.cheek}"/><ellipse cx="${s * brow.x}" cy="${brow.y - (eyes === 'happy' ? 4 : 0)}" rx="${brow.rx}" ry="${brow.ry}" fill="${HAIR}"/><g transform="translate(${s * eye.x} ${eye.y})">${EYE[eyes](p)}${eyes === 'open' ? LASH(s) : ''}</g>`).join('')}
+  <g transform="translate(0 ${G.mouthY})">${MOUTH[mouth]}</g>`;
+}
+
+// Static SVG markup of the hero with a colour and costume (collection thumbnails).
 export function dopakichiSVG(palette = 'pink', costume = null) {
   const p = PALETTES[palette] || PALETTES.pink;
   const c = (costume && COSTUMES[costume]) || {};
-  const { eye, cheek, brow } = G;
-  const armCol = p.flat || p.body;
   const rb = p.body.startsWith('url(') ? '<defs><linearGradient id="dk-rainbow" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#ff97bf"/><stop offset=".33" stop-color="#ffd452"/><stop offset=".66" stop-color="#5eddb8"/><stop offset="1" stop-color="#8fb4ff"/></linearGradient></defs>' : '';
-  return `<svg xmlns="${NS}" viewBox="-112 -232 224 240" aria-hidden="true">${rb}<style>svg{--dkw:3.4}${STYLE}</style>
-  ${c.back || ''}${footSVG(p, -1)}${footSVG(p, 1)}${bodySVG(p)}${earSVG(p, -1)}${earSVG(p, 1)}${headSVG(p)}
-  ${[-1, 1].map((s) => `<ellipse cx="${s * cheek.x}" cy="${cheek.y}" rx="${cheek.rx}" ry="${cheek.ry}" fill="${p.cheek}"/><ellipse class="dk-l" cx="${s * brow.x}" cy="${brow.y}" rx="${brow.rx}" ry="${brow.ry}" fill="${armCol}"/><g transform="translate(${s * eye.x} ${eye.y})">${EYE.open(p.body.startsWith('url(') ? { body: armCol } : p)}</g>`).join('')}
-  <g transform="translate(0 ${G.mouthY})">${MOUTH.smile}</g>
-  ${[-1, 1].map((s) => `<circle class="dk-l" cx="${s * G.rest.x}" cy="${G.rest.y}" r="${G.hand}" fill="${armCol}"/>`).join('')}
-  ${c.face || ''}${c.head || ''}</svg>`;
+  return `<svg xmlns="${NS}" viewBox="-112 -250 224 258" aria-hidden="true">${rb}<style>svg{--dkw:3.4}${STYLE}</style>
+  ${c.back || ''}${footSVG(p, -1)}${footSVG(p, 1)}${bodySVG(p)}${lockSVG(-1)}${lockSVG(1)}${faceSVG(p, 'open', 'smile', c.hide || [])}
+  ${[-1, 1].map((s) => `<circle class="dk-l" cx="${s * G.rest.x}" cy="${G.rest.y}" r="${G.hand}" fill="${SKIN}"/>`).join('')}
+  ${c.face || ''}${hatSVG(c)}</svg>`;
 }
 
 export function startActors(list, getCtx) {

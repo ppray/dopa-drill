@@ -3,7 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { makeRng } from '../app/js/problems.js';
 import { SKILL, SKILLS, MASTERY } from '../app/js/skills.js';
-import { ORDER, PLACEMENT, emptyProgress, recordResult, isUnlocked, isMastered, stateOf, gradePlan, levelPlan, placementPlan, frontier, problemFor, masterWithAncestors, dependents, relockTargets, relockSkill, TREE_LAYOUT, TREE_SUB, TREE_UPPER, TIMES_MAX, FIRST_MAX } from '../app/js/session.js';
+import { ORDER, PLACEMENT, emptyProgress, recordResult, isUnlocked, isMastered, stateOf, gradePlan, levelPlan, placementPlan, frontier, problemFor, masterWithAncestors, pruneProgress, dependents, relockTargets, relockSkill, TREE_LAYOUT, TREE_SUB, TREE_UPPER, TIMES_MAX, FIRST_MAX } from '../app/js/session.js';
 
 test('orders respect prerequisites', () => {
   for (const order of [ORDER, PLACEMENT]) {
@@ -106,7 +106,7 @@ test('tree layout: grades 5-6 sit below every grade 1-4 skill, with a blank row 
   const upMin = Math.min(...SKILLS.filter((s) => s.grade >= TREE_UPPER).map((s) => row[s.id]));
   assert.ok(upMin >= lowMax + 2, `grade 5 starts at ${upMin}, grade 4 ends at ${lowMax}`);
   assert.ok(row['g4-vdiv-3d2'] <= lowMax);
-  assert.ok(row['g4-vdiv-3d2'] < 19, `3けた÷2けた at row ${row['g4-vdiv-3d2']}`); // was row 19 before id049
+  assert.ok(row['g4-vdiv-3d2'] < 19, `三位数÷两位数 at row ${row['g4-vdiv-3d2']}`); // was row 19 before id049
 });
 
 test('timed answers keep recent times, one aggregate per day and the first problems (id033)', () => {
@@ -158,7 +158,7 @@ test('stars: 1 at mastery, then accuracy, speed, retention and mastery of speed;
   // Star 4 needs a gap of a week, then three clean answers.
   for (let i = 0; i < 3; i++) answer(true, ok);
   assert.equal(starsOf(prog, id), 3);
-  assert.match(nextStar(prog, id, '2026-10-03').now, /あと 5日/);
+  assert.match(nextStar(prog, id, '2026-10-03').now, /还要等5天/);
   day = 9;
   for (let i = 0; i < 3; i++) answer(true, ok);
   assert.equal(starsOf(prog, id), 4);
@@ -226,4 +226,14 @@ test('rust: one level, at most three oldest, polished by one first-try answer, r
   prog.placed = true;
   const plan = levelPlan(prog, 10, makeRng(2), now);
   assert.ok(rustyOf(prog, now).every((id) => plan.basic.slice(0, 3).includes(id)), plan.basic.join());
+});
+
+test('saved progress drops skills that left the tree', () => {
+  const prog = emptyProgress();
+  recordResult(prog, 'g1-add-nc', true);
+  prog.skills['g6-letter'] = { n: 3, hist: [1, 1, 1], mastered: true, recent: [] };
+  prog.review.push({ sig: 'a', skill: 'g6-letter', problem: {} }, { sig: 'b', skill: 'g1-add-nc', problem: {} }, { sig: 'c', skill: null, problem: {} });
+  pruneProgress(prog);
+  assert.deepEqual(Object.keys(prog.skills), ['g1-add-nc']);
+  assert.deepEqual(prog.review.map((it) => it.sig), ['b', 'c']);
 });
