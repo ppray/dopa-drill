@@ -9,7 +9,7 @@ import { FX } from './fx.js';
 import { Backdrop } from './bg.js';
 import * as store from './store.js';
 import { createGuide } from './guide.js';
-import { SKILLS, SKILL, LANES, DEPTH } from './skills.js';
+import { SKILLS, SKILL, LANES, DEPTH, skillsOfGrade } from './skills.js';
 import { ORDER, emptyProgress, pruneProgress, recordResult, stateOf, masteryRatio, starsOf, nextStar, STAR_MAX, pickCapsule, useCapsule, rustyOf, gradePlan, levelPlan, reviewPlan, problemFor, frontier, isUnlocked, relockTargets, relockSkill, TREE_LAYOUT } from './session.js';
 import * as growth from './growth.js';
 import * as qs from './quests.js';
@@ -44,6 +44,7 @@ const S = {
   extra: { score: 0, solved: 0, misses: 0, end: 0, over: false }, digitsDone: 0, digitsTotal: 1,
   dopa: { L: 0, shown: 0, unit: '' }, reduced: false, motion: 1, settingsOpen: false,
   run: 0, muted: false, kick: 0, flash: 0, shake: 0, cells: {}, lines: {}, idleAt: 0, busyUntil: 0,
+  fromGrade: 0, // grade whose list started this run; "结束" goes back there
 };
 window.__dopa = { S, audio };
 const guide = createGuide({ hero, reduced: () => S.reduced, onClose: () => {
@@ -99,8 +100,8 @@ function layoutActors() {
     hero.S = clamp(b.height / 260, 0.4, 0.62); hero.place(b.left + b.width / 2, b.bottom - 14); hero.lift = 0; hero.rot = 0;
     return;
   }
-  if (S.screen === 'tree') {
-    const h = $('#screen-tree .tree-head').getBoundingClientRect();
+  if (S.screen === 'tree' || S.screen === 'grade') {
+    const h = $(`#screen-${S.screen} .tree-head`).getBoundingClientRect();
     hero.S = 0.36; hero.place(h.right - 110, h.bottom + 2); hero.lift = 0; hero.rot = 0;
     crowd.forEach((c, i) => placeCrowd(c, i));
     return;
@@ -321,9 +322,10 @@ function activate(k) {
 }
 
 // ---------------------------------------------------------------- flow
-function startGame(kind = 'level', arg) {
+function startGame(kind = 'level', arg, fromGrade = 0) {
   audio.unlock();
   S.run += 1;
+  S.fromGrade = fromGrade;
   if (S.bonusOpen) { $('#bonus').hidden = true; S.bonusOpen = false; }
   S.N = Number($('.pick [aria-checked="true"]').dataset.count);
   S.rng = makeRng(Number(params.get('seed') || Math.floor(Math.random() * 1e9)));
@@ -1412,7 +1414,7 @@ function setReviewButton(btn, n) {
 function startReview() {
   const prog = progress();
   if (!prog.review.length) return;
-  startGame('review');
+  startGame('review', undefined, S.screen === 'title' ? 0 : S.fromGrade);
 }
 function refreshTitle() {
   const prog = progress();
@@ -1428,7 +1430,8 @@ function refreshTitle() {
   $('#collect-badge').textContent = `${ul.ITEMS.filter((it) => ul.isUnlocked(it, got)).length}/${ul.ITEMS.length}`;
 }
 
-function toTitle() {
+// With a grade, lands on that grade's skill list instead of the title.
+function toTitle(grade = 0) {
   if (S.trophyOpen) { S.trophyOpen = false; $('#trophy-got').hidden = true; }
   S.run += 1;
   S.ready = false;
@@ -1442,7 +1445,7 @@ function toTitle() {
   applyLevel(0.02, { key: 0 });
   audio.play('musicGain', audio.now(), { v: 0.8, ramp: 0.1 });
   renderCalendar(true);
-  showScreen('title');
+  if (grade) { renderGrade(grade); showScreen('grade'); } else showScreen('title');
   checkLoginBonus();
 }
 
@@ -1509,7 +1512,7 @@ onFrame((dt, t) => {
   $('#flash').style.opacity = S.reduced ? 0 : ((S.flash * S.motion) ** 1.5 * 0.6).toFixed(3);
 
   // backdrop
-  const vE = S.settingsOpen || S.screen === 'collect' ? S.previewE : (S.screen === 'title' || S.screen === 'tree' || S.screen === 'trophy') ? 0.04 : lerp(Math.min(S.E, 0.3), S.E, S.motion);
+  const vE = S.settingsOpen || S.screen === 'collect' ? S.previewE : (S.screen === 'title' || S.screen === 'tree' || S.screen === 'grade' || S.screen === 'trophy') ? 0.04 : lerp(Math.min(S.E, 0.3), S.E, S.motion);
   S.visualE = lerp(S.visualE, vE, Math.min(1, dt * 2.2));
   const st = bg.state;
   st.E = S.visualE;
@@ -1699,6 +1702,39 @@ function openTree(justIds = [], starIds = []) {
       }, justIds.length ? 500 : 200);
     });
   });
+}
+
+// ---------------------------------------------------------------- grade: drill down to one skill
+// A grade button opens that grade's skills, grouped by lane in curriculum
+// order, plus the whole-grade mix. Locked skills can be practised too: the
+// grade mix never asked for unlocks either.
+const KP_STATE = { locked: '未解锁', new: '新的', learning: '练习中', mastered: '精通' };
+function renderGrade(g) {
+  const prog = progress();
+  const list = skillsOfGrade(g);
+  const rustSet = new Set(rustyOf(prog));
+  const lanes = [...new Set(list.map((s) => s.lane))].sort((a, b) => a - b);
+  S.grade = g;
+  $('#grade-title').textContent = `${g}年级`;
+  $('#grade-count').textContent = `${list.filter((x) => stateOf(prog, x.id) === 'mastered').length} / ${list.length}`;
+  const item = (sk) => {
+    const st = stateOf(prog, sk.id);
+    const stars = starsOf(prog, sk.id);
+    const rusty = rustSet.has(sk.id);
+    const mark = st === 'mastered' ? `<i class="stars s${stars}">${starRow(stars)}</i>`
+      : st === 'learning' ? `<i class="kp-bar" style="--p:${masteryRatio(prog, sk.id)}"></i>`
+      : `<i class="kp-tag">${st === 'new' ? 'NEW' : KP_STATE.locked}</i>`;
+    const label = `${sk.name} ${KP_STATE[st]}${st === 'mastered' ? ` ${stars}颗星` : ''}${rusty ? ' 已生锈' : ''}`;
+    return `<li><button type="button" class="kp ${st}${rusty ? ' rusty' : ''}" data-id="${sk.id}" aria-label="${label}">${rusty ? '<i class="rust" aria-hidden="true">生锈</i>' : ''}<span class="kp-name">${sk.name}</span>${mark}</button></li>`;
+  };
+  $('#kp-list').innerHTML = lanes.map((lane) => `${lanes.length > 1 ? `<h3 class="kp-lane">${LANES[lane]}</h3>` : ''}<ul class="kp-group">${list.filter((s) => s.lane === lane).map(item).join('')}</ul>`).join('');
+}
+function openGrade(g) {
+  audio.unlock();
+  audio.play('blip', audio.now(), { m: 79, v: 0.1 });
+  renderGrade(g);
+  showScreen('grade');
+  $('#grade-scroll').scrollTop = 0;
 }
 
 // ---------------------------------------------------------------- skill info (id037)
@@ -2488,13 +2524,21 @@ $('#motion').addEventListener('input', (e) => { const v = e.target.value / 100; 
 $('#motion').addEventListener('change', () => { S.previewE = 0.04 + 0.3 * S.motion; });
 $('#mute').addEventListener('click', () => setMuted(!S.muted));
 $('#go-extra').addEventListener('click', startExtra);
-$('#go-title').addEventListener('click', toTitle);
-$('#go-again').addEventListener('click', () => startGame(S.kind, S.kindArg));
-$('#again').addEventListener('click', toTitle);
+$('#go-title').addEventListener('click', () => toTitle(S.fromGrade));
+$('#go-again').addEventListener('click', () => startGame(S.kind, S.kindArg, S.fromGrade));
+$('#again').addEventListener('click', () => toTitle(S.fromGrade));
 $('#go-review').addEventListener('click', startReview);
 $('#f-review').addEventListener('click', startReview);
 $('#start-review').addEventListener('click', startReview);
-$$('.grades button').forEach((b) => b.addEventListener('click', () => startGame('grade', Number(b.dataset.grade))));
+$$('.grades button').forEach((b) => b.addEventListener('click', () => openGrade(Number(b.dataset.grade))));
+$('#grade-back').addEventListener('click', () => { audio.play('blip', audio.now(), { m: 72, v: 0.08 }); toTitle(); });
+$('#grade-mix').addEventListener('click', () => { const g = S.grade; startGame('grade', g, g); });
+$('#kp-list').addEventListener('click', (e) => {
+  const b = e.target.closest('.kp');
+  if (!b || !SKILL[b.dataset.id]) return;
+  audio.play('blip', audio.now(), { m: 84, v: 0.12 });
+  startGame('practice', b.dataset.id, S.grade);
+});
 $('#open-tree').addEventListener('click', () => openTree());
 $('#tree').addEventListener('pointerdown', startHold);
 $('#tree').addEventListener('contextmenu', (e) => { if (e.target.closest('.node')) e.preventDefault(); });

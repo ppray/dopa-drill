@@ -1,7 +1,7 @@
 // Title tour: captions belong to the interface, never to the mascot.
 const INTRO = { title: '玩法', text: '题目有 3 种\n选择方式哦' };
 const LEVEL = { target: '#start', title: '我的水平', text: '适合现在的你的题目。\n先来测测实力' };
-const GRADES = { target: '.grades', title: '1年级〜6年级', text: '把整个年级的题目\n集中练习' };
+const GRADES = { target: '.grades', title: '1年级〜6年级', text: '先选年级，再挑一个技能\n专项练习，也可以全年级混合' };
 const TREE = { target: '#open-tree', title: '技能树', text: '选一个想做的题目\n来专项练习' };
 const TROPHY = { target: '#open-trophy', title: '奖杯', text: '玩游戏就能获得哦。\n坚持玩就会越来越多' };
 const COLLECTION = { target: '#open-collect', title: '收藏', text: '用奖杯奖励可以\n解锁背景、音乐、装扮等，\n自由选择哦' };
