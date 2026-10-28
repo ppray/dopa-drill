@@ -1162,7 +1162,7 @@ function showResult() {
   renderSkillNews($('#r-skills'));
   renderGrowth($('#r-growth'));
   renderQuestMini($('#r-quests'));
-  if (checkTrophies().length) { const run = S.run; setTimeout(() => { if (run === S.run && S.screen === 'result') openTrophies(); }, 2300); }
+  settleTrophies('result', 2300);
   $('#go-tree').hidden = !(S.newUnlocks.length || S.newMastered.length || Object.keys(S.newStars).length || S.plan.placement);
   setReviewButton($('#go-review'), ok ? 0 : S.wrongList.length);
   audio.play('musicGain', audio.now(), { v: 0.55, ramp: 0.6 });
@@ -1223,7 +1223,7 @@ function showFinal() {
   $('#f-dopa').textContent = fmtDopa(S.dopa.L);
   renderSkillNews($('#f-skills'));
   renderQuestMini($('#f-quests'));
-  if (checkTrophies().length) { const run = S.run; setTimeout(() => { if (run === S.run && S.screen === 'final') openTrophies(); }, 2600); }
+  settleTrophies('final', 2600);
   $('#f-tree').hidden = !(S.newUnlocks.length || S.newMastered.length || Object.keys(S.newStars).length || S.plan.placement);
   setReviewButton($('#f-review'), S.wrongList.length);
   audio.play('musicGain', audio.now(), { v: 0.55, ramp: 0.6 });
@@ -2055,18 +2055,33 @@ function trophyExtra() {
     itemsOwned: own.length, catComplete: ul.CATS.filter((c) => ul.ITEMS.filter((it) => it.cat === c.key).every((it) => ul.isUnlocked(it, got))).length,
   };
 }
-S.trophyQueue = [];
-function checkTrophies() {
-  if (S.demo || params.has('skill') || params.has('capture')) return [];
+// The quiet batch is for players who played before trophies existed; a new
+// player's firsts are shown one by one. Decided at start-up: by the first
+// result screen this play is already in the history.
+function initTrophies() {
   const ts = trophyState();
-  // The quiet batch is for players who played before trophies existed; a new player's firsts are shown one by one.
-  if (!ts.init && !store.load().history.length) ts.init = true;
+  if (!ts.init && !store.load().history.length) { ts.init = true; store.save(); }
+}
+// Earned but not shown yet. Saved, so leaving a screen before its dialog
+// opens, or closing the app, only delays the dialog to the next chance.
+const unseenTrophies = () => (trophyState().unseen || []).map((id) => tr.TROPHY[id]).filter(Boolean);
+const trophiesOff = () => S.demo || params.has('skill') || params.has('capture');
+function checkTrophies() {
+  if (trophiesOff()) return [];
+  const ts = trophyState();
   // Collection trophies depend on items that other trophies unlock: settle in a few rounds.
   const fresh = [];
   for (let i = 0; i < 3; i++) { const f = tr.evaluate(ts, tr.trophyMetrics(trophySnap())); fresh.push(...f); if (!f.length && ts.init) break; }
+  if (fresh.length) ts.unseen = [...(ts.unseen || []), ...fresh.map((t) => t.id)];
   if (fresh.length || (ts.batch && ts.batch.length)) store.save();
-  S.trophyQueue.push(...fresh);
   return fresh;
+}
+// The result and final screens show everything still unseen, not only what this check earned.
+function settleTrophies(screen, delay) {
+  checkTrophies();
+  if (!unseenTrophies().length) return;
+  const run = S.run;
+  setTimeout(() => { if (run === S.run && S.screen === screen) openTrophies(); }, delay);
 }
 function titleTrophies() {
   if (S.screen !== 'title') return;
@@ -2074,7 +2089,7 @@ function titleTrophies() {
   refreshTrophyBadge();
   const ts = trophyState();
   // Shown only if the player is still on the title; otherwise they wait for the next chance.
-  if (S.trophyQueue.length || (ts.batch && ts.batch.length)) setTimeout(() => { if (S.screen === 'title' && !S.bonusOpen && !S.hammerOpen && !S.scene && !S.settingsOpen && !S.confirm && !S.demo && !S.guideOpen) openTrophies(); }, 450);
+  if (unseenTrophies().length || (ts.batch && ts.batch.length)) setTimeout(() => { if (S.screen === 'title' && !S.bonusOpen && !S.hammerOpen && !S.scene && !S.settingsOpen && !S.confirm && !S.demo && !S.guideOpen) openTrophies(); }, 450);
 }
 function refreshTrophyBadge() { $('#trophy-badge').textContent = `${tr.earnedCount(trophyState())}/${tr.TROPHIES.length}`; }
 
@@ -2087,11 +2102,13 @@ function trophySvg(rank = 'none') {
 }
 
 function openTrophies() {
-  if (S.trophyOpen || S.demo || S.guideOpen) return;
+  // Off in demo / skill / capture: what is unseen waits for a normal session.
+  if (S.trophyOpen || trophiesOff() || S.guideOpen) return;
   const ts = trophyState();
-  const batch = (ts.batch || []).map((id) => tr.TROPHY[id]).filter(Boolean);
-  const list = batch.length ? batch : S.trophyQueue.splice(0);
-  ts.batch = null; store.save();
+  const batch =(ts.batch || []).map((id) => tr.TROPHY[id]).filter(Boolean);
+  const list = batch.length ? batch : unseenTrophies();
+  ts.batch = null; if (!batch.length) ts.unseen = [];
+  store.save();
   if (!list.length) return;
   S.trophyOpen = true;
   $('#tg-title').textContent = '获得奖杯！';
@@ -2119,7 +2136,7 @@ function closeTrophies() {
   audio.play('blip', audio.now(), { m: 76, v: 0.1 });
   refreshTrophyBadge();
   requestAnimationFrame(layoutActors);
-  if (S.trophyQueue.length) setTimeout(openTrophies, 300);
+  if (unseenTrophies().length) setTimeout(openTrophies, 300);
 }
 
 // The list screen: one card per series, folded; filters for earned / not yet.
@@ -2641,6 +2658,7 @@ setVolume(saved.volume, { persist: false });
 applyLook(titleLook());
 renderCalendar();
 refreshTitle();
+initTrophies();
 checkLoginBonus();
 applyLevel(0.02);
 startClock();
