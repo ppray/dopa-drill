@@ -777,7 +777,12 @@ function drawMark(el, style, E, { preview = false } = {}) {
 }
 
 // The look of one play: fixed choices stay, "随机" changes every play.
-const equipState = () => { const st = store.load(); if (!st.equip) st.equip = ul.defaultEquip(); return st.equip; };
+const equipState = () => {
+  const st = store.load(); if (!st.equip) st.equip = ul.defaultEquip();
+  // A saved choice whose item was removed (the headband) goes back to "随机".
+  for (const k of Object.keys(st.equip)) if (st.equip[k] !== 'auto' && !ul.ITEM[st.equip[k]]) st.equip[k] = 'auto';
+  return st.equip;
+};
 const gotTrophies = () => trophyState().got || {};
 S.look = null;
 function applyLook(look) {

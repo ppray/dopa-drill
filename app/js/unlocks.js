@@ -69,7 +69,7 @@ addItems([
 ]);
 // id044: costumes, colours, crowd and finales (id045 moved three rewards to the new series).
 addItems([
-  { id: 'costume:hachimaki', cat: 'costume', name: '头带', trophy: 'problems-50' },
+  { id: 'costume:mortarboard', cat: 'costume', name: '博士帽', trophy: 'problems-50' },
   { id: 'costume:cape', cat: 'costume', name: '披风', trophy: 'combo-20' },
   { id: 'costume:glasses', cat: 'costume', name: '圆眼镜', trophy: 'firstTry-100' },
   { id: 'costume:ribbon', cat: 'costume', name: '蝴蝶结', trophy: 'stickers-14' },
